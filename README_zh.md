@@ -11,6 +11,8 @@
   <img src="https://img.shields.io/badge/Built%20with-Python%20%7C%20WebRTC-yellow?style=flat-square" alt="Tech">
 </div>
 
+English](./README.md) | [简体中文](./README_zh.md)
+
 ## 📖 简介
 
 **ZeroMic** 是一款极简的跨平台无线麦克风传输工具。
