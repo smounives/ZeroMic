@@ -5,53 +5,51 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: '手动指定版本号 (如 v0.0.1)'
+        required: false
+        type: string
 
 permissions:
   contents: write
 
 jobs:
   build:
-    name: Build ${{ matrix.os }} (${{ matrix.arch }})
+    name: Build on ${{ matrix.os }} (${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Windows x64 & ARM64
           - os: windows-latest
-            arch: x86_64
-            artifact_name: Windows-x64.exe
+            arch: x64
+            target: windows-x64
           - os: windows-latest
             arch: arm64
-            artifact_name: Windows-arm64.exe
-          # Linux x64
+            target: windows-arm64
           - os: ubuntu-latest
-            arch: x86_64
-            artifact_name: Linux-x64
-          # macOS x64 & ARM64 (Apple Silicon)
-          - os: macos-latest
-            arch: x86_64
-            artifact_name: macOS-x64
-          - os: macos-latest
+            arch: x64
+            target: linux-x64
+          - os: macos-14
             arch: arm64
-            artifact_name: macOS-arm64
+            target: macos-arm64
+          - os: macos-14
+            arch: x64
+            target: macos-x64
 
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
+          architecture: ${{ matrix.arch }} # 强制指定 Python 架构
 
-      - name: Get Version
-        shell: bash
-        run: echo "VERSION=${GITHUB_REF_NAME:-v-dev}" >> $GITHUB_ENV
-
-      - name: Install System Dependencies (Linux)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install Dependencies (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev python3-dev
@@ -61,48 +59,68 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          if [ "${{ runner.os }}" = "Windows" ]; then
             [ -f requirements-windows.txt ] && pip install -r requirements-windows.txt
           fi
           pip install pyinstaller
 
-      - name: Build with PyInstaller
+      - name: Get Version String
+        id: version
         shell: bash
-        env:
-          # 核心改动：通过环境变量将架构传给 main.spec
-          TARGET_ARCH: ${{ matrix.arch }} 
         run: |
-          # 命令行必须极其干净，不能有任何多余参数
-          pyinstaller --noconfirm main.spec
+          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          echo "tag=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Rename and Prepare
-        shell: bash
+      # === Windows 构建步骤 ===
+      - name: Build with PyInstaller (Windows)
+        if: runner.os == 'Windows'
+        env:
+          TARGET_ARCH: ${{ matrix.arch == 'x64' && 'x86_64' || 'arm64' }}
         run: |
-          FINAL_NAME="ZeroMic-${{ env.VERSION }}-${{ matrix.artifact_name }}"
-          cd dist
-          # 兼容不同系统的默认输出名并重命名
-          mv ZeroMic.exe "$FINAL_NAME" || mv ZeroMic "$FINAL_NAME" || mv main* "$FINAL_NAME"
-          echo "FINAL_PATH=dist/$FINAL_NAME" >> $GITHUB_ENV
+          pyinstaller --noconfirm main.spec
+          # 改名：ZeroMic.exe -> ZeroMic-v0.0.1-windows-x64.exe
+          Move-Item -Path "dist\ZeroMic.exe" -Destination "dist\ZeroMic-${{ steps.version.outputs.tag }}-${{ matrix.target }}.exe" -Force
+        shell: pwsh
+
+      # === Linux/macOS 构建步骤 ===
+      - name: Build with PyInstaller (Unix)
+        if: runner.os != 'Windows'
+        env:
+          TARGET_ARCH: ${{ matrix.arch == 'x64' && 'x86_64' || 'arm64' }}
+        run: |
+          pyinstaller --noconfirm main.spec
+          # 改名：ZeroMic -> ZeroMic-v0.0.1-macos-arm64
+          mv dist/ZeroMic dist/ZeroMic-${{ steps.version.outputs.tag }}-${{ matrix.target }}
+        shell: bash
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ env.FINAL_PATH }}
+          name: ZeroMic-${{ matrix.target }}
+          path: dist/ZeroMic-*
+          retention-days: 5
 
   release:
-    name: Create GitHub Release
+    name: Create Release
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: ./artifacts
+          path: artifacts
 
-      - name: Create Release
+      - name: Prepare Release Files
+        run: |
+          mkdir -p release-files
+          find artifacts -type f -exec cp {} release-files/ \;
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ./artifacts/**/*
-          generate_release_notes: true
+          tag_name: ${{ github.event.inputs.version || github.ref_name }}
+          name: Release ${{ github.event.inputs.version || github.ref_name }}
+          files: release-files/*
+          generate_release_notes: true # 自动生成更新日志
