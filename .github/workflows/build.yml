@@ -3,29 +3,36 @@ name: Build and Release ZeroMic
 on:
   push:
     tags:
-      - 'v*' # 当推送标签如 v0.0.3 时触发
+      - 'v*'
+  workflow_dispatch:
 
 permissions:
-  contents: write # 赋予创建 Release 的权限
+  contents: write
 
 jobs:
   build:
-    name: Build for ${{ matrix.os }}
+    name: Build ${{ matrix.os }} (${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
         include:
+          # Windows x64
           - os: windows-latest
-            artifact_name: ZeroMic-Win.exe
-            req_file: requirements-windows.txt
+            arch: x64
+            artifact_name: ZeroMic-Windows-x64.exe
+          # Linux x64
           - os: ubuntu-latest
-            artifact_name: ZeroMic-Linux
-            req_file: requirements.txt
+            arch: x64
+            artifact_name: ZeroMic-Linux-x64
+          # macOS x64 (Intel)
           - os: macos-latest
-            artifact_name: ZeroMic-macOS
-            req_file: requirements.txt
+            arch: x64
+            artifact_name: ZeroMic-macOS-x64
+          # macOS arm64 (Apple Silicon)
+          - os: macos-latest
+            arch: arm64
+            artifact_name: ZeroMic-macOS-arm64
 
     steps:
       - name: Checkout Code
@@ -35,55 +42,72 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip' # 自动缓存依赖，加快后续构建
+          cache: 'pip'
+
+      - name: Get Version from Tag
+        shell: bash
+        run: |
+          # 提取版本号 (例如 v0.0.3)，如果没有标签则默认使用 v-dev
+          VERSION=${GITHUB_REF_NAME:-v-dev}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Install System Dependencies (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev python3-dev
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev python3-dev
 
       - name: Install Python Dependencies
+        shell: bash
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          # 如果是 Windows，额外安装专属依赖
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            pip install -r requirements-windows.txt
+            [ -f requirements-windows.txt ] && pip install -r requirements-windows.txt
           fi
           pip install pyinstaller
 
       - name: Build with PyInstaller
+        shell: bash
         run: |
-          # 优先使用你项目中的 main.spec 进行构建
-          pyinstaller --noconfirm main.spec --name "${{ matrix.artifact_name }}"
+          # 运行构建，注意：macOS 使用 --target-arch 处理不同架构
+          ARCH_ARGS=""
+          if [ "${{ matrix.os }}" = "macos-latest" ]; then
+            ARCH_ARGS="--target-arch ${{ matrix.arch }}"
+          fi
+          
+          pyinstaller --noconfirm $ARCH_ARGS main.spec
 
-      - name: Upload Build Artifact
+      - name: Rename and Prepare Artifact
+        shell: bash
+        run: |
+          # 组装最终文件名：项目名-版本号-系统-架构
+          FINAL_NAME="ZeroMic-${{ env.VERSION }}-${{ matrix.artifact_name }}"
+          cd dist
+          # 将 spec 生成的默认文件名（假设是 ZeroMic）重命名为带版本的格式
+          mv ZeroMic* "$FINAL_NAME" || mv main* "$FINAL_NAME"
+          echo "FINAL_RELEASE_PATH=dist/$FINAL_NAME" >> $GITHUB_ENV
+
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: dist/${{ matrix.artifact_name }}*
+          path: ${{ env.FINAL_RELEASE_PATH }}
 
   release:
     name: Create GitHub Release
     needs: build
     runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: ./artifacts
 
-      - name: Display structure of downloaded files
-        run: ls -R ./artifacts
-
-      - name: Create Release and Upload Assets
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            ./artifacts/ZeroMic-Win.exe/ZeroMic-Win.exe
-            ./artifacts/ZeroMic-Linux/ZeroMic-Linux
-            ./artifacts/ZeroMic-macOS/ZeroMic-macOS
-          generate_release_notes: true # 自动生成更新日志
-          draft: false
-          prerelease: false
+          # 使用通配符自动包含所有命名的二进制文件
+          files: ./artifacts/**/*
+          generate_release_notes: true
