@@ -1,21 +1,20 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
-import sys
 
+# 从环境变量获取架构，默认为空（让系统自动决定）
 target_arch = os.environ.get('TARGET_ARCH', None)
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('webui', 'webui')],
-    hiddenimports=['engineio.async_drivers.threading', 'gi'],
+    datas=[('webui', 'webui')],  # 包含前端资源
+    hiddenimports=['engineio.async_drivers.threading'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
     noarchive=False,
-    optimize=0,
 )
 pyz = PYZ(a.pure)
 
@@ -25,7 +24,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='main',
+    name='ZeroMic',  # 先生成固定名称，后续由 Actions 改名
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -35,9 +34,9 @@ exe = EXE(
     console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
-    target_arch=target_arch,
+    target_arch=target_arch, # 注入架构变量
     codesign_identity=None,
     entitlements_file=None,
-    icon='icon.ico', 
-    uac_admin=True, 
+    icon='icon.ico',
+    uac_admin=True,  # Windows 自动申请管理员权限
 )
