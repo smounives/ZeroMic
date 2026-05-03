@@ -17,15 +17,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Windows x64 & ARM64
           - os: windows-latest
             arch: x86_64
             artifact_name: Windows-x64.exe
           - os: windows-latest
             arch: arm64
             artifact_name: Windows-arm64.exe
+          # Linux x64
           - os: ubuntu-latest
             arch: x86_64
             artifact_name: Linux-x64
+          # macOS x64 & ARM64 (Apple Silicon)
           - os: macos-latest
             arch: x86_64
             artifact_name: macOS-x64
@@ -66,9 +69,10 @@ jobs:
       - name: Build with PyInstaller
         shell: bash
         env:
-          TARGET_ARCH: ${{ matrix.arch }} # 通过环境变量传递架构给 spec
+          # 核心改动：通过环境变量将架构传给 main.spec
+          TARGET_ARCH: ${{ matrix.arch }} 
         run: |
-          # 仅指定 spec 文件，不带任何 --参数
+          # 命令行必须极其干净，不能有任何多余参数
           pyinstaller --noconfirm main.spec
 
       - name: Rename and Prepare
@@ -76,7 +80,7 @@ jobs:
         run: |
           FINAL_NAME="ZeroMic-${{ env.VERSION }}-${{ matrix.artifact_name }}"
           cd dist
-          # 兼容 spec 中定义的各种可能名称
+          # 兼容不同系统的默认输出名并重命名
           mv ZeroMic.exe "$FINAL_NAME" || mv ZeroMic "$FINAL_NAME" || mv main* "$FINAL_NAME"
           echo "FINAL_PATH=dist/$FINAL_NAME" >> $GITHUB_ENV
 
