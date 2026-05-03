@@ -1,8 +1,11 @@
 name: Build and Release ZeroMic
 
 on:
-  workflow_dispatch:
-      
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: # 方便你手动点按钮测试
+
 permissions:
   contents: write
 
@@ -36,13 +39,14 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev python3-dev
+          # 注意：Ubuntu 24.04 需使用 4.1 版本
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev python3-dev
 
       - name: Install Python Dependencies
+        shell: bash # 统一使用 bash 避免 PowerShell 报错
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          # 只有 Windows 安装专属依赖
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             if [ -f requirements-windows.txt ]; then
               pip install -r requirements-windows.txt
@@ -53,9 +57,16 @@ jobs:
       - name: Build with PyInstaller
         shell: bash
         run: |
-          # 因为你改了 spec，所以这里直接跑 spec 即可
-          # --noconfirm 确保覆盖旧文件，--name 确保生成的文件名符合矩阵定义
-          pyinstaller --noconfirm main.spec --name "${{ matrix.artifact_name }}"
+          # 仅使用 .spec 文件，不再添加 --name 等参数
+          pyinstaller --noconfirm main.spec
+
+      - name: Rename Output (Optional)
+        shell: bash
+        run: |
+          # 如果你的 spec 默认生成的文件名不是矩阵要求的，可以在这里改名
+          # 假设 spec 生成的是 dist/main 或 dist/ZeroMic
+          cd dist
+          mv * "${{ matrix.artifact_name }}" || true 
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -81,5 +92,3 @@ jobs:
             ./artifacts/ZeroMic-Linux/ZeroMic-Linux
             ./artifacts/ZeroMic-macOS/ZeroMic-macOS
           generate_release_notes: true
-          draft: false
-          prerelease: false
