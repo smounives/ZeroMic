@@ -16,25 +16,29 @@ permissions:
 
 jobs:
   build:
-    name: Build on ${{ matrix.os }} (${{ matrix.arch }})
+    name: Build on ${{ matrix.os }} (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
+          # Windows (统一发 x64)
           - os: windows-latest
             arch: x64
             target: windows-x64
-          - os: windows-latest
-            arch: arm64
-            target: windows-arm64
+            
+          # Linux (x64)
           - os: ubuntu-latest
             arch: x64
             target: linux-x64
+            
+          # macOS Apple Silicon (ARM64)
           - os: macos-14
             arch: arm64
             target: macos-arm64
-          - os: macos-14
+            
+          # macOS Intel (使用官方最新的免费 Intel 节点！)
+          - os: macos-15-intel
             arch: x64
             target: macos-x64
 
@@ -46,7 +50,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          architecture: ${{ matrix.arch }} # 强制指定 Python 架构
+          architecture: ${{ matrix.arch }}
 
       - name: Install Dependencies (Linux)
         if: runner.os == 'Linux'
@@ -71,25 +75,27 @@ jobs:
           VERSION="${{ github.event.inputs.version || github.ref_name }}"
           echo "tag=$VERSION" >> $GITHUB_OUTPUT
 
-      # === Windows 构建步骤 ===
+      # === Windows 独立构建 ===
       - name: Build with PyInstaller (Windows)
         if: runner.os == 'Windows'
         env:
-          TARGET_ARCH: ${{ matrix.arch == 'x64' && 'x86_64' || 'arm64' }}
+          TARGET_ARCH: x86_64
         run: |
+          # 纯净命令，不带参数干扰
           pyinstaller --noconfirm main.spec
-          # 改名：ZeroMic.exe -> ZeroMic-v0.0.1-windows-x64.exe
+          # 使用 PowerShell 原生命令重命名
           Move-Item -Path "dist\ZeroMic.exe" -Destination "dist\ZeroMic-${{ steps.version.outputs.tag }}-${{ matrix.target }}.exe" -Force
         shell: pwsh
 
-      # === Linux/macOS 构建步骤 ===
+      # === Linux/macOS 独立构建 ===
       - name: Build with PyInstaller (Unix)
         if: runner.os != 'Windows'
         env:
           TARGET_ARCH: ${{ matrix.arch == 'x64' && 'x86_64' || 'arm64' }}
         run: |
+          # 纯净命令
           pyinstaller --noconfirm main.spec
-          # 改名：ZeroMic -> ZeroMic-v0.0.1-macos-arm64
+          # 使用 bash 原生命令重命名
           mv dist/ZeroMic dist/ZeroMic-${{ steps.version.outputs.tag }}-${{ matrix.target }}
         shell: bash
 
@@ -123,4 +129,4 @@ jobs:
           tag_name: ${{ github.event.inputs.version || github.ref_name }}
           name: Release ${{ github.event.inputs.version || github.ref_name }}
           files: release-files/*
-          generate_release_notes: true # 自动生成更新日志
+          generate_release_notes: true
