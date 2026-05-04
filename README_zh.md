@@ -11,7 +11,22 @@
   <img src="https://img.shields.io/badge/Built%20with-Python%20%7C%20WebRTC-yellow?style=flat-square" alt="Tech">
 </div>
 
-English](./README.md) | [简体中文](./README_zh.md)
+[English](./README.md) | [简体中文](./README_zh.md)
+
+
+### 🌍 帮助我们翻译 ZeroMic！
+
+我们需要你的帮助，让 ZeroMic 支持更多语言！  
+请参考 `webui/lang/` 目录下的语言文件：
+- `en_us.json`（英语）
+- `zh_cn.json`（简体中文）
+
+贡献新语言或改进现有翻译的方法：
+1. 按照相同的结构创建一个新的 JSON 文件（例如 `ja_jp.json`）。
+2. 提交 Pull Request。
+
+你的每一份贡献都能帮助全球更多用户用上 ZeroMic——非常感谢！❤️
+---
 
 ## 📖 简介
 
