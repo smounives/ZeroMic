@@ -319,6 +319,17 @@
             i18nData = await response.json();
             currentLang = lang;
             renderI18n(); // 数据加载完毕后立即重绘 UI
+
+            // 额外通知后端 Python 更新系统托盘的语言
+            try {
+                await fetch('/api/set_lang', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lang: lang })
+                });
+            } catch (e) {
+                console.warn('通知后端更新语言失败:', e);
+            }
         } catch (error) {
             console.error(`加载语言包 ${lang}.json 失败:`, error);
             // 容错处理：如果请求失败，可以尝试回退
@@ -344,6 +355,10 @@
     // === 2. 信令连接与状态切换 ===
     socket.on('connect', () => {
         socket.emit('join', { role: 'desktop' });
+    });
+
+    socket.on('toggle_mute', () => {
+        if (speakerBtn) speakerBtn.click();
     });
 
     socket.on('ready', (data) => {
@@ -515,6 +530,17 @@ async function loadAudioDevices() {
             gainNode.gain.value = gainSlider.value; 
             updateUIState('active');
             drawVolume();
+        }
+        
+        // 同步状态给后端 Python，更新托盘菜单文字
+        try {
+            await fetch('/api/sync_mute', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ muted: !isPlaying })
+            });
+        } catch (e) {
+            console.warn('同步静音状态失败:', e);
         }
     });
 

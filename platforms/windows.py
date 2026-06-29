@@ -51,9 +51,6 @@ class WindowsPlatform(BasePlatform):
         if self.is_driver_installed():
             return True, '虚拟声卡已安装'
 
-        if not self.is_admin():
-            return False, '权限不足，请关闭程序后，右键选择「以管理员身份运行」。'
-
         try:
             download_url = 'https://x19.fp.ps.netease.com/file/69f5f04aa4b381a43364a834LmYUuSiN07'
             temp_dir = tempfile.mkdtemp()
@@ -67,7 +64,11 @@ class WindowsPlatform(BasePlatform):
                 zip_ref.extractall(temp_dir)
 
             setup_exe = os.path.join(temp_dir, 'VBCABLE_Setup_x64.exe')
-            subprocess.run([setup_exe, '-i', '-h'], check=True)
+            if self.is_admin():
+                subprocess.run([setup_exe, '-i', '-h'], check=True)
+            else:
+                cmd = ['powershell', '-Command', f'Start-Process -FilePath "{setup_exe}" -ArgumentList "-i -h" -Verb RunAs -Wait -WindowStyle Hidden']
+                subprocess.run(cmd, check=True)
 
             return True, '安装成功！'
         except Exception as e:
@@ -80,11 +81,18 @@ class WindowsPlatform(BasePlatform):
             return False, '未找到卸载程序，可能已被手动卸载。'
 
         try:
-            process = subprocess.run([setup_path, '-u', '-h'], check=False)
-            if process.returncode in [0, 1, 2]:
+            if self.is_admin():
+                process = subprocess.run([setup_path, '-u', '-h'], check=False)
+                return_code = process.returncode
+            else:
+                cmd = ['powershell', '-Command', f'$p = Start-Process -FilePath "{setup_path}" -ArgumentList "-u -h" -Verb RunAs -Wait -WindowStyle Hidden -PassThru; exit $p.ExitCode']
+                process = subprocess.run(cmd, check=False)
+                return_code = process.returncode
+
+            if return_code in [0, 1, 2]:
                 return True, '卸载成功！'
             else:
-                return False, f'卸载程序返回了异常状态码: {process.returncode}'
+                return False, f'卸载程序返回了异常状态码: {return_code}'
         except Exception as e:
             return False, f'卸载时发生异常: {str(e)}'
 

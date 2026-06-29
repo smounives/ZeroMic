@@ -8,8 +8,8 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('webui', 'webui')],  # 包含前端资源
-    hiddenimports=['engineio.async_drivers.threading'],
+    datas=[('webui', 'webui'), ('icon.ico', '.')],  # 包含前端资源和图标
+    hiddenimports=['engineio.async_drivers.threading', 'pystray', 'PIL'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -31,12 +31,12 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=target_arch, # 注入架构变量
     codesign_identity=None,
     entitlements_file=None,
     icon='icon.ico',
-    uac_admin=True,  # Windows 自动申请管理员权限
+    uac_admin=False,  # Windows 自动申请管理员权限
 )
