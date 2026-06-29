@@ -111,6 +111,12 @@
         .speaker-button.muted { background-color: var(--color-muted) !important; color: #4a0005 !important; }
         .volume-ring.muted { background-color: var(--color-muted); transform: scale(1) !important; opacity: 0.1; }
 
+        mdui-select::part(menu) {
+            max-height: 256px !important; 
+            overflow-y: auto !important;
+            max-width: calc(100vw - 40px) !important;
+            overflow-x: hidden !important;
+        }
     </style>
 </head>
 <body>
