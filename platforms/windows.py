@@ -42,7 +42,7 @@ class WindowsPlatform(BasePlatform):
     def is_driver_installed(self) -> bool:
         try:
             cmd = 'powershell -Command "Get-CimInstance Win32_SoundDevice | Select-Object -Property Name"'
-            output = subprocess.check_output(cmd, shell=True, text=True)
+            output = subprocess.check_output(cmd, shell=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
             return 'VB-Audio Virtual' in output or 'CABLE' in output
         except Exception:
             return False
@@ -64,11 +64,12 @@ class WindowsPlatform(BasePlatform):
                 zip_ref.extractall(temp_dir)
 
             setup_exe = os.path.join(temp_dir, 'VBCABLE_Setup_x64.exe')
+            creation_flags = subprocess.CREATE_NO_WINDOW
             if self.is_admin():
-                subprocess.run([setup_exe, '-i', '-h'], check=True)
+                subprocess.run([setup_exe, '-i', '-h'], check=True, creationflags=creation_flags)
             else:
-                cmd = ['powershell', '-Command', f'Start-Process -FilePath "{setup_exe}" -ArgumentList "-i -h" -Verb RunAs -Wait -WindowStyle Hidden']
-                subprocess.run(cmd, check=True)
+                cmd = ['powershell', '-WindowStyle', 'Hidden', '-Command', f'Start-Process -FilePath "{setup_exe}" -ArgumentList "-i -h" -Verb RunAs -Wait -WindowStyle Hidden']
+                subprocess.run(cmd, check=True, creationflags=creation_flags)
 
             return True, '安装成功！'
         except Exception as e:
@@ -81,12 +82,13 @@ class WindowsPlatform(BasePlatform):
             return False, '未找到卸载程序，可能已被手动卸载。'
 
         try:
+            creation_flags = subprocess.CREATE_NO_WINDOW
             if self.is_admin():
-                process = subprocess.run([setup_path, '-u', '-h'], check=False)
+                process = subprocess.run([setup_path, '-u', '-h'], check=False, creationflags=creation_flags)
                 return_code = process.returncode
             else:
-                cmd = ['powershell', '-Command', f'$p = Start-Process -FilePath "{setup_path}" -ArgumentList "-u -h" -Verb RunAs -Wait -WindowStyle Hidden -PassThru; exit $p.ExitCode']
-                process = subprocess.run(cmd, check=False)
+                cmd = ['powershell', '-WindowStyle', 'Hidden', '-Command', f'$p = Start-Process -FilePath "{setup_path}" -ArgumentList "-u -h" -Verb RunAs -Wait -WindowStyle Hidden -PassThru; exit $p.ExitCode']
+                process = subprocess.run(cmd, check=False, creationflags=creation_flags)
                 return_code = process.returncode
 
             if return_code in [0, 1, 2]:
