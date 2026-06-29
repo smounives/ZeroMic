@@ -19,6 +19,19 @@ else:
 
 # 常量
 VERSION = "v0.0.4"
+DEFAULT_PORT = 5000
+
+def get_available_port(start_port, max_port=5100):
+    for port in range(start_port, max_port + 1):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(('0.0.0.0', port))
+                return port
+            except OSError:
+                continue
+    return start_port
+
+SERVER_PORT = get_available_port(DEFAULT_PORT)
 
 # 平台检测
 platform = get_platform()
@@ -67,7 +80,7 @@ def desktop():
 def api_info():
     return jsonify({
         "ip": get_lan_ip(),
-        "port": 5000,
+        "port": SERVER_PORT,
         "version": VERSION
     })
 
@@ -162,10 +175,10 @@ def start_flask():
     lan_ip = get_lan_ip()
     print(f"\n=========================================")
     print(f"ZeroMic 服务端已启动！")
-    print(f"手机请访问: https://{lan_ip}:5000")
+    print(f"手机请访问: https://{lan_ip}:{SERVER_PORT}")
     print(f"=========================================\n")
 
-    socketio.run(app, host='0.0.0.0', port=5000, ssl_context='adhoc', debug=False, use_reloader=False, allow_unsafe_werkzeug=True)
+    socketio.run(app, host='0.0.0.0', port=SERVER_PORT, ssl_context='adhoc', debug=False, use_reloader=False, allow_unsafe_werkzeug=True)
 
 
 if __name__ == '__main__':
@@ -176,7 +189,7 @@ if __name__ == '__main__':
     # 给 Flask 一点时间启动
     time.sleep(1.5)
 
-    desktop_url = 'https://127.0.0.1:5000/desktop'
+    desktop_url = f'https://127.0.0.1:{SERVER_PORT}/desktop'
 
     if platform.use_system_browser:
         import webbrowser
