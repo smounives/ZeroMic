@@ -121,17 +121,18 @@ public class PolicyConfigClient {{
             return True, '虚拟声卡已安装'
 
         try:
-            download_url = 'https://x19.fp.ps.netease.com/file/69f5f04aa4b381a43364a834LmYUuSiN07'
+            import sys
+            import shutil
+            if getattr(sys, 'frozen', False):
+                base_path = sys._MEIPASS
+            else:
+                base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
             # 在安装前记录当前默认音频输出设备
             old_device = self._get_default_audio_endpoint()
 
             temp_dir = tempfile.mkdtemp()
-            zip_path = os.path.join(temp_dir, 'vbcable.zip')
-
-            req = urllib.request.Request(download_url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req) as response, open(zip_path, 'wb') as out_file:
-                out_file.write(response.read())
+            zip_path = os.path.join(base_path, 'drivers', 'vbcable.zip')
 
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(temp_dir)
@@ -143,6 +144,7 @@ public class PolicyConfigClient {{
             else:
                 cmd = ['powershell', '-WindowStyle', 'Hidden', '-Command', f'Start-Process -FilePath "{setup_exe}" -ArgumentList "-i -h" -Verb RunAs -Wait -WindowStyle Hidden']
                 subprocess.run(cmd, check=True, creationflags=creation_flags)
+            shutil.rmtree(temp_dir, ignore_errors=True)
             # 安装完成后恢复之前的默认音频输出设备
             if old_device:
                 self._set_default_audio_endpoint(old_device)

@@ -3,12 +3,17 @@ import os
 
 # 从环境变量获取架构，默认为空（让系统自动决定）
 target_arch = os.environ.get('TARGET_ARCH', None)
+import sys
+
+base_datas = [('webui', 'webui'), ('icon.ico', '.')]
+if sys.platform == 'win32':
+    base_datas.append(('drivers/vbcable.zip', 'drivers'))
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('webui', 'webui'), ('icon.ico', '.')],  # 包含前端资源和图标
+    datas=base_datas,  # 包含前端资源和驱动
     hiddenimports=['engineio.async_drivers.threading', 'pystray', 'PIL'],
     hookspath=[],
     hooksconfig={},
