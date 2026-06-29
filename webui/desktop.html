@@ -692,8 +692,12 @@ async function loadAudioDevices() {
                             const reminderText = document.getElementById('install-reminder-text');
                             if (platformInfo?.post_install_warning) {
                                 reminderText.innerText = platformInfo.post_install_warning;
+                                dialogInstallReminder.open = true;
+                            } else {
+                                // 如果没有警告文案，直接跳过弹窗
+                                btnUninstall.style.display = '';
+                                loadAudioDevices();
                             }
-                            dialogInstallReminder.open = true;
                             
                         }, 300);
                     }, 1500);

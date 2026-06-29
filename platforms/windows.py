@@ -47,12 +47,85 @@ class WindowsPlatform(BasePlatform):
         except Exception:
             return False
 
+    def _get_default_audio_endpoint(self) -> str:
+        ps_code = r"""
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+[Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+public interface IMMDevice {
+    int a(); int o();
+    int GetId([MarshalAs(UnmanagedType.LPWStr)] out string id);
+}
+[Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+public interface IMMDeviceEnumerator {
+    int f();
+    int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice endpoint);
+}
+[ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
+public class MMDeviceEnumeratorComObject { }
+public class AudioHelper {
+    public static string GetDefaultAudioEndpoint() {
+        var enumerator = new MMDeviceEnumeratorComObject() as IMMDeviceEnumerator;
+        IMMDevice dev = null;
+        enumerator.GetDefaultAudioEndpoint(0, 0, out dev);
+        string id = null;
+        dev.GetId(out id);
+        return id;
+    }
+}
+"@
+[AudioHelper]::GetDefaultAudioEndpoint()
+"""
+        try:
+            cmd = ['powershell', '-NoProfile', '-Command', ps_code]
+            output = subprocess.check_output(cmd, text=True, creationflags=subprocess.CREATE_NO_WINDOW).strip()
+            return output
+        except Exception as e:
+            print("Get Audio Endpoint Error:", e)
+            return ""
+
+    def _set_default_audio_endpoint(self, device_id: str):
+        if not device_id: return
+        ps_code = f"""
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+[ComImport, Guid("870AF99C-171D-4F9E-AF0D-E63DF40C2BC9")]
+internal class _CPolicyConfigClient {{ }}
+[ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("F8679F50-850A-41CF-9C72-430F290290C8")]
+internal interface IPolicyConfig {{
+    int a(); int b(); int c(); int d(); int e(); int f(); int g(); int h(); int i(); int j();
+    int SetDefaultEndpoint(string wszDeviceId, uint role);
+    int SetEndpointVisibility(string wszDeviceId, bool bVisible);
+}}
+public class PolicyConfigClient {{
+    public static void SetDefaultDevice(string deviceID) {{
+        IPolicyConfig policyConfig = (IPolicyConfig)new _CPolicyConfigClient();
+        policyConfig.SetDefaultEndpoint(deviceID, 0);
+        policyConfig.SetDefaultEndpoint(deviceID, 1);
+        policyConfig.SetDefaultEndpoint(deviceID, 2);
+    }}
+}}
+"@
+[PolicyConfigClient]::SetDefaultDevice('{device_id}')
+"""
+        try:
+            cmd = ['powershell', '-NoProfile', '-Command', ps_code]
+            subprocess.run(cmd, check=True, creationflags=subprocess.CREATE_NO_WINDOW)
+        except Exception as e:
+            print("Set Audio Endpoint Error:", e)
+
     def install_driver(self) -> tuple[bool, str]:
         if self.is_driver_installed():
             return True, '虚拟声卡已安装'
 
         try:
             download_url = 'https://x19.fp.ps.netease.com/file/69f5f04aa4b381a43364a834LmYUuSiN07'
+
+            # 在安装前记录当前默认音频输出设备
+            old_device = self._get_default_audio_endpoint()
+
             temp_dir = tempfile.mkdtemp()
             zip_path = os.path.join(temp_dir, 'vbcable.zip')
 
@@ -70,6 +143,9 @@ class WindowsPlatform(BasePlatform):
             else:
                 cmd = ['powershell', '-WindowStyle', 'Hidden', '-Command', f'Start-Process -FilePath "{setup_exe}" -ArgumentList "-i -h" -Verb RunAs -Wait -WindowStyle Hidden']
                 subprocess.run(cmd, check=True, creationflags=creation_flags)
+            # 安装完成后恢复之前的默认音频输出设备
+            if old_device:
+                self._set_default_audio_endpoint(old_device)
 
             return True, '安装成功！'
         except Exception as e:
@@ -99,6 +175,4 @@ class WindowsPlatform(BasePlatform):
             return False, f'卸载时发生异常: {str(e)}'
 
     def get_post_install_warning(self) -> str:
-        return ('Windows 可能已自动将默认播放设备切换为 CABLE Input，'
-                '导致电脑暂时没有声音。\n'
-                '请点击电脑右下角的喇叭图标，手动将播放设备切换回原来的扬声器。')
+        return ""
