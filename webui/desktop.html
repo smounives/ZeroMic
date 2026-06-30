@@ -9,6 +9,7 @@
     <script src="./lib/mdui.global.js"></script>
     <link href="./lib/mdui-icons.css" rel="stylesheet">
     <script src="./lib/socket.io.min.js"></script>
+    <script src="./lib/qrcode.min.js"></script>
 
     <style>
         :root {
@@ -167,7 +168,7 @@
     </div>
 
     <div id="tutorial-card" class="tutorial-card">
-        <mdui-icon name="qr_code_scanner" style="font-size: 32px; color: rgb(var(--mdui-color-primary));"></mdui-icon>
+        <div id="qrcode" style="padding: 8px; background: #fff; border-radius: 12px; display: inline-block; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-bottom: 4px;"></div>
         <div style="font-size: 16px; font-weight: bold; margin-top: 12px;" data-i18n="tutorial_title">等待手机连接</div>
         <div style="font-size: 13px; color: #aaa; margin-top: 8px; line-height: 1.6;" data-i18n="tutorial_desc">
             请确保手机与电脑在同一局域网<br>
@@ -354,7 +355,18 @@
 
     // === 1. 初始化拉取局域网 IP 显示教程 ===
     fetch('/api/info').then(res => res.json()).then(data => {
-        document.getElementById('tutorial-ip').innerText = `https://${data.ip}:${data.port}`;
+        const url = `https://${data.ip}:${data.port}`;
+        document.getElementById('tutorial-ip').innerText = url;
+        
+        // 动态生成二维码
+        new QRCode(document.getElementById("qrcode"), {
+            text: url,
+            width: 140,
+            height: 140,
+            colorDark : "#000000",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.H
+        });
     });
 
 
